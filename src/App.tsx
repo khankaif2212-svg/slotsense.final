@@ -1,7 +1,8 @@
 import { getSessions } from "./supabase-sessions";
 import { supabase } from "./lib/supabase";
-import {useEffect,useMemo,useState} from"react";import{Activity,AlertTriangle,ArrowRight,BookOpen,CalendarDays,CalendarRange,Check,CheckCircle2,ClipboardList,Download,FileSpreadsheet,GraduationCap,LayoutDashboard,LifeBuoy,ListChecks,LogOut,Menu,Plus,Search,Settings,ShieldCheck,Sparkles,Users,Building2,X,Trash2,Printer,Upload,Megaphone,ChartNoAxesCombined,DoorOpen,History,Save,WandSparkles,UserCheck,FileText,Clock3}from"lucide-react";import{courses,rooms,teachers,days,demo,students,type Session}from"./data";
+import {useEffect,useMemo,useState } from"react";import{Activity,AlertTriangle,ArrowRight,BookOpen,CalendarDays,CalendarRange,Check,CheckCircle2,ClipboardList,Download,FileSpreadsheet,GraduationCap,LayoutDashboard,LifeBuoy,ListChecks,LogOut,Menu,Plus,Search,Settings,ShieldCheck,Sparkles,Users,Building2,X,Trash2,Printer,Upload,Megaphone,ChartNoAxesCombined,DoorOpen,History,Save,WandSparkles,UserCheck,FileText,Clock3}from"lucide-react";import{courses,rooms,teachers,days,demo,students,type Session}from"./data";
 type Page="Overview"|"Timetable Maker"|"Auto Scheduler"|"Clash Centre"|"Disruption Recovery"|"What-If Simulator"|"Campus Digital Twin"|"SlotSense Copilot"|"Faculty Cover Desk"|"Lesson Plan Studio"|"Student Support Tracker"|"Courses & Divisions"|"Teachers & Workload"|"Classrooms & Labs"|"Examination Planner"|"Attendance"|"Syllabus Planner"|"Assignments & Marks"|"Question Bank"|"Teaching Materials"|"Notices"|"Tasks & Reminders"|"Analytics & Reports"|"Version History"|"Settings";
+
 const nav:{group:string;items:{name:Page;icon:any}[]}[]=[{group:"WORKSPACE",items:[{name:"Overview",icon:LayoutDashboard},{name:"Timetable Maker",icon:CalendarDays},{name:"Auto Scheduler",icon:WandSparkles},{name:"Clash Centre",icon:ShieldCheck},{name:"Disruption Recovery",icon:LifeBuoy},{name:"What-If Simulator",icon:Activity}]},{group:"COLLEGE",items:[{name:"Courses & Divisions",icon:GraduationCap},{name:"Teachers & Workload",icon:Users},{name:"Classrooms & Labs",icon:Building2},{name:"Campus Digital Twin",icon:Building2},{name:"Examination Planner",icon:CalendarRange}]},{group:"TEACHER TOOLS",items:[{name:"Attendance",icon:UserCheck},{name:"Syllabus Planner",icon:BookOpen},{name:"Assignments & Marks",icon:ClipboardList},{name:"Question Bank",icon:FileText},{name:"Teaching Materials",icon:FileSpreadsheet},{name:"Notices",icon:Megaphone},{name:"Tasks & Reminders",icon:ListChecks},{name:"Faculty Cover Desk",icon:LifeBuoy},{name:"Lesson Plan Studio",icon:BookOpen},{name:"Student Support Tracker",icon:UserCheck},{name:"SlotSense Copilot",icon:Sparkles}]},{group:"INSIGHTS",items:[{name:"Analytics & Reports",icon:ChartNoAxesCombined},{name:"Version History",icon:History},{name:"Settings",icon:Settings}]}];
 const read=<T,>(k:string,f:T):T=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v) as T:f}catch{return f}};
 const time=(s:string)=>{const[h,m]=s.split(":").map(Number);return`${h%12||12}:${String(m).padStart(2,"0")} ${h>=12?"PM":"AM"}`};
@@ -9,6 +10,7 @@ const overlaps=(a:Session,b:Session)=>a.day===b.day&&a.start<b.end&&b.start<a.en
 function clashes(a:Session[]){const out:{a:Session;b:Session;why:string}[]=[];for(let i=0;i<a.length;i++)for(let j=i+1;j<a.length;j++){const x=a[i],y=a[j];if(!overlaps(x,y))continue;const r=[];if(x.room===y.room)r.push("Room double-booking");if(x.teacher===y.teacher)r.push("Faculty overlap");if(x.course===y.course&&x.division===y.division)r.push("Division overlap");if(r.length)out.push({a:x,b:y,why:r.join(" · ")});}return out}
 function csv(rows:Session[]){const data=[["Course","Division","Day","Start","End","Subject","Teacher","Room","Type"],...rows.map(s=>[s.course,s.division,s.day,s.start,s.end,s.subject,s.teacher,s.room,s.kind])];const blob=new Blob([data.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n")],{type:"text/csv"});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="slotsense-timetable.csv";a.click();URL.revokeObjectURL(url)}
 export default function App(){
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
 const[logged,setLogged]=useState(false),[email,setEmail]=useState("admin@slotsense.demo"),[pass,setPass]=useState("demo123"),[page,setPage]=useState<Page>("Overview"),[mobile,setMobile]=useState(false),[sessions,setSessions]=useState<Session[]>(()=>read("ss-sessions",demo())),[versions,setVersions]=useState<Session[][]>(()=>read("ss-versions",[])),[course,setCourse]=useState("All courses"),[day,setDay]=useState("All days"),[search,setSearch]=useState(""),[modal,setModal]=useState(false),[edit,setEdit]=useState<Session|null>(null),[toast,setToast]=useState(""),[tasks,setTasks]=useState<any[]>(()=>read("ss-tasks",[{id:"t1",title:"Review weekly timetable",due:"Today",priority:"High",done:false},{id:"t2",title:"Update syllabus progress",due:"Tomorrow",priority:"Medium",done:false}])),[notices,setNotices]=useState<any[]>(()=>read("ss-notices",[{id:"n1",title:"Demo timetable review",body:"Please review the sample schedule.",audience:"All courses"}])),[newTask,setNewTask]=useState(""),[newNotice,setNewNotice]=useState(""),[attendance,setAttendance]=useState<Record<string,string>>(()=>read("ss-attendance",{})),[syllabus,setSyllabus]=useState<any[]>(()=>read("ss-syllabus",[{id:"s1",course:"TY B.Sc Computer Science",subject:"Artificial Intelligence",unit:"Module 1: Introduction to AI",status:"In progress"}])),[assignments,setAssignments]=useState<any[]>(()=>read("ss-assignments",[{id:"a1",course:"TY B.Sc Computer Science",subject:"Artificial Intelligence",title:"AI Module 1 Assignment",due:"2026-10-20",status:"Open",marks:""}])),[questions,setQuestions]=useState<any[]>(()=>read("ss-questions",[{id:"q1",course:"TY B.Sc Computer Science",subject:"Artificial Intelligence",unit:"Module 1",question:"Define Artificial Intelligence.",marks:5}])),[materials,setMaterials]=useState<any[]>(()=>read("ss-materials",[{id:"m1",title:"AI Module 1 Notes",kind:"Notes"}])),[exams,setExams]=useState<any[]>(()=>read("ss-exams",[])),[unavailable,setUnavailable]=useState<string[]>(()=>read("ss-unavailable",[])),[f,setF]=useState<Partial<Session>>({course:"TY B.Sc Computer Science",division:"A",day:"Monday",start:"09:00",end:"10:00",subject:"Artificial Intelligence",teacher:teachers[0],room:"S1",kind:"Theory"}),[simDay,setSimDay]=useState("Monday"),[simStart,setSimStart]=useState("09:00"),[simEnd,setSimEnd]=useState("10:00"),[simRoom,setSimRoom]=useState("S1"),[input,setInput]=useState(""),[coverItems,setCoverItems]=useState<any[]>(()=>read("ss-cover",[])),[lessonPlans,setLessonPlans]=useState<any[]>(()=>read("ss-lessonplans",[])),[supportItems,setSupportItems]=useState<any[]>(()=>read("ss-support",[])),[copilotReply,setCopilotReply]=useState("Try: find free room Monday 10:00, show clashes, or find substitute teacher Monday.");
 useEffect(()=>{
   supabase.auth.getSession().then(({data})=>{
@@ -137,18 +139,53 @@ const generate=()=>{let n=[...sessions],added=0;courses.slice(0,12).forEach((c,i
 const table=(rows:Session[]) => <div className="table-wrap"><table><thead><tr><th>Day / time</th><th>Course / division</th><th>Subject</th><th>Teacher</th><th>Room</th><th>Type</th><th>Actions</th></tr></thead><tbody>{rows.slice(0,160).map(s=><tr key={s.id}><td><b>{s.day}</b><small>{time(s.start)}–{time(s.end)}</small></td><td>{s.course}<small>Division {s.division}</small></td><td>{s.subject}</td><td>{s.teacher}</td><td><span className="chip">{s.room}</span></td><td><span className="tag">{s.kind}</span></td><td><button className="tiny" onClick={()=>{setEdit(s);setF(s);setModal(true)}}>Edit</button> <button className="tiny danger" onClick={()=>save(sessions.filter(x=>x.id!==s.id))}>Delete</button></td></tr>)}</tbody></table></div>;
 if(!logged)return <div className="login"><header className="brand"><span className="logo">S</span><b>Slot<span>Sense</span></b><small>ACADEMIC OPERATIONS</small></header><div className="login-body"><section className="hero"><div className="eyebrow">INTELLIGENT COLLEGE WORKSPACE</div><h1>Make every<br/><em>period count.</em></h1><p>Timetables, teaching tasks and campus scheduling in one organized workspace.</p><ul><li>Smart clash detection</li><li>Teacher productivity tools</li><li>Multi-course scheduling</li></ul></section><form className="login-card" onSubmit={async e=>{
   e.preventDefault();
-  const { error } = await supabase.auth.signInWithPassword({
+  if (authMode === "signup") {
+  const { data, error } = await supabase.auth.signUp({
     email,
     password: pass
   });
+
   if (error) {
-    say("Login failed: " + error.message);
+    say("Signup failed: " + error.message);
     return;
   }
-  setLogged(true);
-  say("Login successful!");
-}}><div className="logo large">S</div><div className="eyebrow">WELCOME BACK</div><h2>Sign in to SlotSense</h2><p>Open your academic workspace.</p><label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password<input type="password" value={pass} onChange={e=>setPass(e.target.value)} required/></label><button className="primary full">Open workspace <ArrowRight size={16}/></button><button type="button" className="demo" onClick={()=>{setEmail("admin@slotsense.demo");setPass("demo123")}}>Use demo login: admin@slotsense.demo / demo123</button><small>Demo only; not secure authentication.</small></form></div><footer>© 2026 SlotSense <span>React · TypeScript · Local demo</span></footer></div>;
-const stats=[["Scheduled sessions",sessions.length,CalendarRange],["Detected conflicts",conflicts.length,AlertTriangle],["Courses covered",new Set(sessions.map(s=>s.course)).size,GraduationCap],["Available rooms",rooms.length-unavailable.length,Building2]];
+
+  if (data.session) {
+    setLogged(true);
+    say("Account created successfully!");
+  } else {
+    say("Account created! Check your email to confirm, then login.");
+    setAuthMode("login");
+  }
+
+  return;
+}
+
+const { error } = await supabase.auth.signInWithPassword({
+  email,
+  password: pass
+});
+
+if (error) {
+  say("Login failed: " + error.message);
+  return;
+}
+
+setLogged(true);
+say("Login successful!");
+}}><div className="logo large">S</div><div className="eyebrow">WELCOME BACK</div><h2>{authMode === "login"
+  ? "Sign in to SlotSense"
+  : "Create your SlotSense account"}</h2><p>Open your academic workspace.</p><label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password<input type="password" value={pass} onChange={e=>setPass(e.target.value)} required/></label><button className="primary full">Open workspace <ArrowRight size={16}/></button><button type="button" className="demo" onClick={()=>{setEmail("admin@slotsense.demo");setPass("demo123")}}>Use demo login: 
+<button type="button" className="demo" onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")}>
+  {authMode === "login" ? "New user? Sign Up" : "Already registered? Login"}
+</button>admin@slotsense.demo / demo123</button><small>Demo only; not secure authentication.</small></form></div><footer>© 2026 SlotSense <span>React · TypeScript · Local demo</span></footer></div>;
+const stats=[["Scheduled sessions",sessions.length,CalendarRange],["Detected conflicts",conflicts.length,AlertTriangle],["Courses covered",new Set(sessions.map(s=>s.course)).size,GraduationCap],["Available rooms",rooms.length-unavailable.length,Building2]];<button
+  type="button"
+  className="demo"
+  onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")}
+>
+  {authMode === "login" ? "New user? Sign Up" : "Already registered? Login"}
+</button>
 return <div className="shell"><aside className={`sidebar ${mobile?"open":""}`}><div className="sidebrand"><span className="logo">S</span><div><b>Slot<span>Sense</span></b><small>ACADEMIC OPERATIONS</small></div><button className="mobile-close" onClick={()=>setMobile(false)}><X/></button></div><div className="sidelabel">WORKSPACE <span>●</span></div><nav>{nav.map(g=><section key={g.group}><small>{g.group}</small>{g.items.map(it=>{const I=it.icon;return <button key={it.name} className={page===it.name?"active":""} onClick={()=>{setPage(it.name);setMobile(false)}}><I size={17}/>{it.name}{it.name==="Clash Centre"&&conflicts.length>0&&<i>{conflicts.length}</i>}</button>})}</section>)}</nav><div className="profile"><div className="avatar">CA</div><div><b>College Admin</b><small>Demo workspace</small></div><button title="Logout" onClick={async()=>{
   await supabase.auth.signOut();
   setLogged(false);

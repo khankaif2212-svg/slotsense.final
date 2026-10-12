@@ -5,3 +5,4 @@ dist/
 !.env.example
 *.tsbuildinfo
 src/supabase-test.ts
+.vercel
